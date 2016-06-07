@@ -69,8 +69,8 @@ exports.handler = function(event, context) {
             _sizesArray[key].width / size.height
           );
 
-          var width = _sizesArray[key].width;//scalingFactor * size.width;
-          var height = _sizesArray[key].width;//scalingFactor * size.height;
+          var width = scalingFactor * size.width;
+          var height = scalingFactor * size.height;
           var index = key;
 
           this.resize(width, height).fill("#FFFFFF").fontSize(30).drawText(10, 10, "ImageUpload.com", "SouthWest").toBuffer(
@@ -96,7 +96,8 @@ exports.handler = function(event, context) {
           Bucket: dstBucket,
           Key: pathWithFolder + "/" + _sizesArray[index].destinationPath + "/" + fileName.slice(0, -4) + ".jpg",
           Body: data,
-          ContentType: 'JPG'
+          ContentType: 'JPG',
+          ACL: 'public-read'
         }, next);
         console.timeEnd("uploadImage");
       }
