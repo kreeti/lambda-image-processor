@@ -6,6 +6,7 @@ var gm = require('gm').subClass({
   imageMagick: true
 });
 
+var fs = require('fs');
 var util = require('util');
 
 // get reference to S3 client
@@ -72,8 +73,18 @@ exports.handler = function(event, context) {
           var width = scalingFactor * size.width;
           var height = scalingFactor * size.height;
           var index = key;
+          console.log(path.dirname('/var/task/watermark.png'));
+          console.log(fs.lstatSync('/var/task/watermark.png').isFile());
 
-          this.resize(width, height).fill("#FFFFFF").fontSize(30).drawText(10, 10, "ImageUpload.com", "SouthWest").toBuffer(
+
+          if(key == 2) {
+            var resized = this.resize(width, height).fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
+            //var resized = this.resize(width, height).gravity("SouthWest").draw(['image over 0,0 0,0 /var/task/watermark.png'])
+          } else {
+            var resized = this.resize(width, height);
+          }
+
+          resized.background('#FFFFFF').gravity('Center').noProfile().interlace('Plane').samplingFactor(2, 1).toBuffer(
             'JPG', function(err, buffer) {
               console.log("Printing the buffer...");
               console.log(buffer);
