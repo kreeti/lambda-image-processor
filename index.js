@@ -16,7 +16,7 @@ var s3 = new AWS.S3();
 exports.handler = function(event, context) {
   var srcBucket = event.bucket.name;
   var dstBucket = srcBucket;
-
+  var rotationDegree = event.rotation
   // Object key may have spaces or unicode non-ASCII characters.
   var srcKey = decodeURIComponent(event.location.replace(/\+/g, " ")).substr(1);
 
@@ -65,23 +65,19 @@ exports.handler = function(event, context) {
         gm(response).size(function(err, size) {
           if(err) { console.log(err); return; }
 
-          var scalingFactor = Math.min(
-            _sizesArray[key].width / size.width,
-            _sizesArray[key].width / size.height
-          );
-
-          var width = scalingFactor * size.width;
-          var height = scalingFactor * size.height;
+          var width = _sizesArray[key].width;
+          var height = width;
           var index = key;
-          console.log(path.dirname('/var/task/watermark.png'));
-          console.log(fs.lstatSync('/var/task/watermark.png').isFile());
-
 
           if(key == 2) {
-            var resized = this.resize(width, height).fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
+            var resized = this.resize(width, height, "!").fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
             //var resized = this.resize(width, height).gravity("SouthWest").draw(['image over 0,0 0,0 /var/task/watermark.png'])
           } else {
-            var resized = this.resize(width, height);
+            var resized = this.resize(width, height, "!");
+          }
+
+          if(rotationDegree) {
+            resized = resized.rotate("#FFFFFF", rotationDegree)
           }
 
           resized.background('#FFFFFF').gravity('Center').noProfile().interlace('Plane').samplingFactor(2, 1).toBuffer(
