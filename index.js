@@ -17,8 +17,10 @@ exports.handler = function(event, context) {
   var srcBucket = event.bucket.name;
   var dstBucket = srcBucket;
   var rotationDegree = event.rotation
+  var deleteFile = event.destroy
+
   // Object key may have spaces or unicode non-ASCII characters.
-  var srcKey = decodeURIComponent(event.location.replace(/\+/g, " ")).substr(1);
+  var srcKey = decodeURIComponent(event.location.replace(/\+/g, " "));
 
   var _75px = { width: 75, dstnKey: srcKey, destinationPath: "thumb" };
   var _200px = { width: 200, dstnKey: srcKey, destinationPath: "medium" };
@@ -40,6 +42,31 @@ exports.handler = function(event, context) {
   if (imageType != "jpg" && imageType != "gif" && imageType != "png" && imageType != "eps") {
     console.log('skipping non-image ' + srcKey);
     return;
+  }
+
+  if(deleteFile) {
+    _sizesArray.forEach(function(v) {
+      pathWithFolder = srcKey.split('/').slice(0, 5).join('/');
+
+      if(deleteFile == true) {
+        deletePath = pathWithFolder + "/" + v.destinationPath + "/" + fileName.slice(0, -4) + ".jpg";
+      } else {
+        deletePath = pathWithFolder + "/" + v.destinationPath + "/" + deleteFile;
+      }
+
+      console.log(deletePath);
+
+      s3.deleteObject({
+          Bucket: dstBucket,
+          Key: deletePath,
+      }, function(err, data) {
+        if(err) {
+          console.log(err);
+        }
+      });
+    });
+
+    if(deleteFile == true) { return; }
   }
 
   async.forEachOf(_sizesArray, function(value, key, callback) {
@@ -75,6 +102,7 @@ exports.handler = function(event, context) {
           } else {
             var resized = this.resize(width, height, "!");
           }
+          console.log(rotationDegree);
 
           if(rotationDegree) {
             resized = resized.rotate("#FFFFFF", rotationDegree)
