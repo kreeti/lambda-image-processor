@@ -42,26 +42,23 @@ exports.handler = function(event, context) {
   var _sizesArray = [_75px, _200px, _600px];
 
   function download(srcBucket, srcKey) {
-    console.log("downloading")
     return new Promise(function(resolve, reject) {
       s3.getObject({
         Bucket: srcBucket,
         Key: srcKey
       }, function(err, response) {
-        if(err) {
-          reject(err);
-        }
-        else {
-          resolve(response);
-        }
+        if(err) { reject(err) }
+        else { resolve(response) };
       })
     })
   }
 
   function convert(response) {
-    console.log("converting")
     return new Promise(function(resolve, reject) {
-      gm(response.Body).background('#FFFFFF').gravity('Center').strip().interlace('Plane').samplingFactor(2, 1).toBuffer('JPG', function(err, buffer) {
+      processedResponse = gm(response.Body).background('#FFFFFF').gravity('Center').strip().interlace('Plane').samplingFactor(2, 1);
+      if (rotationDegree) { processedResponse = processedResponse.rotate("#FFFFFF", rotationDegree) }
+
+      processedResponse.toBuffer('JPG', function(err, buffer) {
         if(err) {
           reject(err);
         }
@@ -73,7 +70,6 @@ exports.handler = function(event, context) {
   }
 
   function process(response, width, style) {
-    console.log("processing")
     return new Promise(function(resolve, reject) {
       gm(response).size(function(err, size) {
         if(err) {
@@ -85,7 +81,6 @@ exports.handler = function(event, context) {
 
         if(style == "large") { resized = resized.fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest"); }
         if(style == "medium") { resized = resized.extent([_200px['width'], _200px['width']]) }
-        if (rotationDegree) { resized = resized.rotate("#FFFFFF", rotationDegree) }
 
         resized.toBuffer('JPG', function(err, buffer) {
           if(err) { reject(err) }
@@ -96,60 +91,72 @@ exports.handler = function(event, context) {
   }
 
   function upload(data, style) {
-    console.log("uploading")
     pathWithFolder = srcKey.split('/').slice(0, 5).join('/')
 
-    s3.putObject({
-      Bucket: dstBucket,
-      Key: pathWithFolder + "/" + style + "/" + fileName.slice(0, -4) + ".jpg",
-      Body: data,
-      ContentType: 'JPG',
-      ACL: 'public-read'
-    }, function(err, data) {
-      if(err) {
-        console.log(err);
-      }
+    return new Promise(function(resolve, reject) {
+      s3.putObject({
+        Bucket: dstBucket,
+        Key: pathWithFolder + "/" + style + "/" + fileName.slice(0, -4) + ".jpg",
+        Body: data,
+        ContentType: 'JPG',
+        ACL: 'public-read'
+      }, function(err, data) {
+        if(err) { reject(err); }
+        else { resolve(true) }
+      });
     });
   }
 
   function deleteFile(srcBucket, deletePath) {
-    console.log("deleting");
-
-    s3.deleteObject({
-      Bucket: srcBucket,
-      Key: deletePath,
-    }, function(err, data) {
-      if(err) {
-        console.log(err);
-      }
-    })
-  }
-
-  if(deleteLocation) {
-    _sizesArray.forEach(function(v) {
-      pathWithFolder = deleteLocation.split('/').slice(0, 5).join('/');
-      fileToDelete = path.basename(deleteLocation);
-      deletePath = pathWithFolder + "/" + v.destinationPath + "/" + fileToDelete;
-
-      deleteFile(srcBucket, deletePath);
+    return new Promise(function(resolve, reject) {
+      s3.deleteObject({
+        Bucket: srcBucket,
+        Key: deletePath,
+      }, function(err, data) {
+        if(err) { reject(err); }
+        else { resolve(data); }
+      })
     });
   }
 
-  if(srcKey) {
-    download(srcBucket, srcKey).then(function(response) {
-      return convert(response);
-    }).then(function(response) {
-      return Promise.all(_sizesArray.map(function(v) {
-        return process(response, v.width, v.destinationPath).then(function(data) {
-          upload(data, v.destinationPath);
-        })
-      }))
-    }).then(function(results) {
-      console.log(results);
-      if (results.length == 3) { context.done() }
-    }).catch(function(error) {
-      console.log("catching");
-      console.log(error);
+  function deleteAllFile(deleteLocation) {
+    return Promise.all(
+      _sizesArray.map(function(v) {
+        pathWithFolder = deleteLocation.split('/').slice(0, 5).join('/');
+        fileToDelete = path.basename(deleteLocation);
+        deletePath = pathWithFolder + "/" + v.destinationPath + "/" + fileToDelete;
+
+        return deleteFile(srcBucket, deletePath);
+      }));
+  }
+
+  function downloadAndUpload(srcBucket, srcKey) {
+    download(srcBucket, srcKey)
+      .then(convert)
+      .then(function(response) {
+        return Promise.all(_sizesArray.map(function(v) {
+          return process(response, v.width, v.destinationPath).then(function(data) {
+            upload(data, v.destinationPath);
+          })
+        }))
+      }).then(function(results) {
+        context.done();
+      }).catch(function(error) {
+        console.log("catching");
+        console.log(error);
+        context.fail();
+      });
+  }
+
+  if(deleteLocation && srcKey) {
+    deleteAllFile(deleteLocation).then(function(response) {
+      downloadAndUpload(srcBucket, srcKey);
     });
+  } else if(deleteLocation) {
+    deleteAllFile(deleteLocation).then(function(response){
+      context.done();
+    });
+  } else if(srcKey) {
+    downloadAndUpload(srcBucket, srcKey);
   }
 }
