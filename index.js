@@ -34,10 +34,9 @@ exports.handler = function(event, context) {
     }
   }
 
-  var _75px = { width: 75, destinationPath: "thumb" };
-  var _200px = { width: 200, destinationPath: "medium" };
-  var _600px = { width: 600, destinationPath: "large" };
-
+  var _75px = { width: 75, style: "thumb" };
+  var _200px = { width: 200, style: "medium" };
+  var _600px = { width: 600, style: "large" };
   var _sizesArray = [_75px, _200px, _600px];
 
   function download(srcBucket, srcKey) {
@@ -59,7 +58,9 @@ exports.handler = function(event, context) {
   function convert(response) {
     return new Promise((resolve, reject) => {
       processedResponse = gm(response.Body).background('#FFFFFF').gravity('Center').strip().interlace('Plane').samplingFactor(2, 1);
-      if (rotationDegree) { processedResponse = processedResponse.rotate("#FFFFFF", rotationDegree) }
+      if (rotationDegree) {
+        processedResponse = processedResponse.rotate("#FFFFFF", rotationDegree)
+      }
 
       processedResponse.toBuffer('JPG', (err, buffer) => {
         if(err) {
@@ -72,20 +73,20 @@ exports.handler = function(event, context) {
     })
   }
 
-  function process(response, width, style) {
+  function process(response, elem) {
     return new Promise((resolve, reject) => {
       gm(response).size((err, size) => {
         if(err) {
           reject(err);
         }
 
-        var resized = this.resize(width, width, "!");
+        var resized = this.resize(elem.width, elem.width, "!");
 
-        if(style == "large") {
+        if(elem.style == "large") {
           resized = resized.fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
         }
 
-        if(style == "medium") {
+        if(elem.style == "medium") {
           resized = resized.extent([_200px['width'], _200px['width']])
         }
 
@@ -139,7 +140,7 @@ exports.handler = function(event, context) {
       _sizesArray.map(v => {
         pathWithFolder = deleteLocation.split('/').slice(0, 5).join('/');
         fileToDelete = path.basename(deleteLocation);
-        deletePath = pathWithFolder + "/" + v.destinationPath + "/" + fileToDelete;
+        deletePath = pathWithFolder + "/" + v.style + "/" + fileToDelete;
 
         return deleteFile(srcBucket, deletePath);
       }));
@@ -151,8 +152,8 @@ exports.handler = function(event, context) {
         .then(convert)
         .then(response => {
           return Promise.all(_sizesArray.map(v => {
-            return process(response, v.width, v.destinationPath).then(data => {
-              return upload(data, v.destinationPath);
+            return process(response, v).then(data => {
+              return upload(data, v.style);
             })
           }))
         });
