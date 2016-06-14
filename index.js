@@ -14,6 +14,7 @@ exports.handler = function(event, context) {
   var dstBucket = srcBucket;
   var deleteLocation = event.to_delete
   var rotationDegree = event.attributes['rotation']
+  var promise;
 
   if(event.location) {
     var srcKey = decodeURIComponent(event.location.replace(/\+/g, " "));
@@ -121,17 +122,15 @@ exports.handler = function(event, context) {
   }
 
   function downloadAndUpload(srcBucket, srcKey) {
-    return new Promise((resolve, reject) => {
-      download(srcBucket, srcKey)
-        .then(convert)
-        .then(response =>
-              Promise.all(_sizesArray.map(v =>
-                                          process(response, v)
-                                          .then(data => upload(data, v.style))
-                                         )
-                         )
-             );
-    });
+    download(srcBucket, srcKey)
+      .then(convert)
+      .then(response =>
+        Promise.all(_sizesArray.map(v => process(response, v)
+                                    .then(data => upload(data, v.style))
+                                  )
+                  )
+          );
+    
   }
 
   if(deleteLocation && srcKey) {
@@ -142,9 +141,11 @@ exports.handler = function(event, context) {
     promise = downloadAndUpload(srcBucket, srcKey);
   }
 
-  promise.then(response => context.done())
-    .catch(error => {
-      console.log(error);
-      context.fail();
-    });
-}
+  if(promise) {
+    promise.then(response => context.done())
+      .catch(error => {
+        console.log(error);
+        context.fail();
+      });
+  }
+} 
