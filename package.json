@@ -2,7 +2,6 @@
   "name": "imageProcessing",
   "description": "Read the image from AWS and resize it.",
   "dependencies": {
-    "async": "^1.5.2",
     "aws-sdk": "^2.3.16",
     "gm": "^1.22.0",
     "path": "^0.12.7",
