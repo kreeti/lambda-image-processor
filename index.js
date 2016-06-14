@@ -65,10 +65,8 @@ exports.handler = function(event, context) {
 
         if(elem.style == "large") {
           resized = resized.fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
-        }
-
-        if(elem.style == "medium") {
-          resized = resized.extent([_200px['width'], _200px['width']])
+        } else if(elem.style == "medium") {
+          resized = resized.extent([elem.width, elem.width])
         }
 
         resized.toBuffer('JPG', (err, buffer) => {
