@@ -7,31 +7,16 @@ var gm = require('gm').subClass({
 
 var fs = require('fs');
 var util = require('util');
-
 var s3 = new AWS.S3();
 
 exports.handler = function(event, context) {
   var srcBucket = event.bucket.name;
   var dstBucket = srcBucket;
-  var rotationDegree = event.rotation
-  var deleteLocation = event.delete_location
+  var deleteLocation = event.to_delete
+  var rotationDegree = event.attributes['rotation']
 
   if(event.location) {
     var srcKey = decodeURIComponent(event.location.replace(/\+/g, " "));
-    var typeMatch = srcKey.match(/\.([^.]*)$/);
-    var fileName = path.basename(srcKey);
-
-    if (!typeMatch) {
-      console.error('unable to infer image type for key ' + srcKey);
-      return;
-    }
-
-    var imageType = typeMatch[1].toLowerCase();
-
-    if (imageType != "jpg" && imageType != "gif" && imageType != "png" && imageType != "eps") {
-      console.log('skipping non-image ' + srcKey);
-      return;
-    }
   }
 
   var _75px = { width: 75, style: "thumb" };
@@ -45,12 +30,10 @@ exports.handler = function(event, context) {
         Bucket: srcBucket,
         Key: srcKey
       }, (err, response) => {
-        if(err) {
+        if(err)
           reject(err);
-        }
-        else {
+        else
           resolve(response);
-        };
       })
     })
   }
@@ -63,12 +46,10 @@ exports.handler = function(event, context) {
       }
 
       processedResponse.toBuffer('JPG', (err, buffer) => {
-        if(err) {
+        if(err)
           reject(err);
-        }
-        else {
+        else
           resolve(buffer);
-        }
       })
     })
   }
@@ -91,30 +72,34 @@ exports.handler = function(event, context) {
         }
 
         resized.toBuffer('JPG', (err, buffer) => {
-          if(err) { reject(err) }
-          else { resolve(buffer) }
+          if(err)
+            reject(err)
+          else
+            resolve(buffer)
         })
       })
     })
   }
 
-  function upload(data, style) {
-    pathWithFolder = srcKey.split('/').slice(0, 5).join('/')
+  function fomattedPath(srcKey, style) {
+    pathWithFolder = srcKey.split('/').slice(0, 5).join('/');
+    fileName = path.basename(srcKey);
+    return pathWithFolder + "/" + style + "/" + fileName.slice(0, -4) + ".jpg"
+  }
 
+  function upload(data, style) {
     return new Promise((resolve, reject) => {
       s3.putObject({
         Bucket: dstBucket,
-        Key: pathWithFolder + "/" + style + "/" + fileName.slice(0, -4) + ".jpg",
+        Key: formattedPath(srcKey, style),
         Body: data,
         ContentType: 'JPG',
         ACL: 'public-read'
       }, (err, data) => {
-        if(err) {
+        if(err)
           reject(err);
-        }
-        else {
+        else
           resolve(true)
-        }
       });
     });
   }
@@ -125,58 +110,43 @@ exports.handler = function(event, context) {
         Bucket: srcBucket,
         Key: deletePath,
       }, (err, data) => {
-        if(err) {
+        if(err)
           reject(err);
-        }
-        else {
+        else
           resolve(data);
-        }
       })
     });
   }
 
   function deleteAllFile(deleteLocation) {
-    return Promise.all(
-      _sizesArray.map(v => {
-        pathWithFolder = deleteLocation.split('/').slice(0, 5).join('/');
-        fileToDelete = path.basename(deleteLocation);
-        deletePath = pathWithFolder + "/" + v.style + "/" + fileToDelete;
-
-        return deleteFile(srcBucket, deletePath);
-      }));
+    return Promise.all(_sizesArray.map(v => deleteFile(srcBucket, formattedPath(deleteLocation, v.style))));
   }
 
   function downloadAndUpload(srcBucket, srcKey) {
     return new Promise((resolve, reject) => {
       download(srcBucket, srcKey)
         .then(convert)
-        .then(response => {
-          return Promise.all(_sizesArray.map(v => {
-            return process(response, v).then(data => {
-              return upload(data, v.style);
-            })
-          }))
-        });
+        .then(response =>
+              Promise.all(_sizesArray.map(v =>
+                                          process(response, v)
+                                          .then(data => upload(data, v.style))
+                                         )
+                         )
+             );
     });
   }
 
   if(deleteLocation && srcKey) {
-    Promise.all([deleteAllFile(deleteLocation), downloadAndUpload(srcBucket, srcKey)])
-      .then(response => {
-        context.done();
-      })
-      .catch(response => {
-        console.log("catching");
-        context.fail();
-      });
+    promise = Promise.all([deleteAllFile(deleteLocation), downloadAndUpload(srcBucket, srcKey)]);
   } else if(deleteLocation) {
-    deleteAllFile(deleteLocation).then(response => context.done());
+    promise = deleteAllFile(deleteLocation);
   } else if(srcKey) {
-    downloadAndUpload(srcBucket, srcKey)
-      .then(response => context.done())
-      .catch(err => {
-        console.log(err);
-        context.fail();
-      });
+    promise = downloadAndUpload(srcBucket, srcKey);
   }
+
+  promise.then(response => context.done())
+    .catch(error => {
+      console.log(error);
+      context.fail();
+    });
 }
