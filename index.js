@@ -20,9 +20,9 @@ exports.handler = function(event, context) {
     var srcKey = decodeURIComponent(event.location.replace(/\+/g, " "));
   }
 
-  var _75px = { width: 75, style: "thumb" };
-  var _200px = { width: 200, style: "medium" };
-  var _600px = { width: 600, style: "large" };
+  var _75px = { width: 75, height: 75, style: "thumb" };
+  var _200px = { width: 200, height: 200, style: "medium" };
+  var _600px = { width: 600, height: 600, style: "large" };
   var _sizesArray = [_75px, _200px, _600px];
 
   function download(srcBucket, srcKey) {
@@ -57,30 +57,28 @@ exports.handler = function(event, context) {
 
   function process(response, elem) {
     return new Promise((resolve, reject) => {
-      gm(response).size((err, size) => {
-        if(err) {
-          reject(err);
-        }
+      var resized;
 
-        var resized = this.resize(elem.width, elem.width, "!");
+      if(elem.style == "thumb") {
+        resized = gm(response).resize(elem.width, elem.height, "!");
+      } else if(elem.style == "medium") {
+        resized = gm(response).resize("40000@");
+      } else if(elem.style == "large") {
+        resized = gm(response).resize("360000@");
+        resized = resized.fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
+      }
 
-        if(elem.style == "large") {
-          resized = resized.fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
-        } else if(elem.style == "medium") {
-          resized = resized.extent([elem.width, elem.width])
-        }
-
-        resized.toBuffer('JPG', (err, buffer) => {
+      resized.toBuffer('JPG', (err, buffer) => {
           if(err)
             reject(err)
           else
             resolve(buffer)
-        })
+
       })
     })
   }
 
-  function fomattedPath(srcKey, style) {
+  function formattedPath(srcKey, style) {
     pathWithFolder = srcKey.split('/').slice(0, 5).join('/');
     fileName = path.basename(srcKey);
     return pathWithFolder + "/" + style + "/" + fileName.slice(0, -4) + ".jpg"
@@ -122,15 +120,10 @@ exports.handler = function(event, context) {
   }
 
   function downloadAndUpload(srcBucket, srcKey) {
-    download(srcBucket, srcKey)
+    return download(srcBucket, srcKey)
       .then(convert)
       .then(response =>
-        Promise.all(_sizesArray.map(v => process(response, v)
-                                    .then(data => upload(data, v.style))
-                                  )
-                  )
-          );
-    
+            Promise.all(_sizesArray.map(v => process(response, v).then(data => upload(data, v.style)))));
   }
 
   if(deleteLocation && srcKey) {
@@ -148,4 +141,4 @@ exports.handler = function(event, context) {
         context.fail();
       });
   }
-} 
+}
