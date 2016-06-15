@@ -1,4 +1,5 @@
-// dependencies
+"use strict";
+
 var path = require('path');
 var AWS = require('aws-sdk');
 var gm = require('gm').subClass({
@@ -12,18 +13,18 @@ var s3 = new AWS.S3();
 exports.handler = function(event, context) {
   var srcBucket = event.bucket.name;
   var dstBucket = srcBucket;
-  var deleteLocation = event.to_delete
-  var rotationDegree = event.attributes['rotation']
-  var promise;
+  var deleteLocation = event.old_path
+  var rotation = event.attributes['rotation']
 
-  if(event.location) {
-    var srcKey = decodeURIComponent(event.location.replace(/\+/g, " "));
+  if(event.path) {
+    var srcKey = decodeURIComponent(event.path.replace(/\+/g, " "));
   }
 
-  var _75px = { width: 75, height: 75, style: "thumb" };
-  var _200px = { width: 200, height: 200, style: "medium" };
-  var _600px = { width: 600, height: 600, style: "large" };
-  var _sizesArray = [_75px, _200px, _600px];
+  var _sizesArray = [
+    { width: 75, height: 75, style: "thumb" },
+    { width: 200, height: 200, style: "medium" },
+    { width: 600, height: 600, style: "large" }
+  ];
 
   function download(srcBucket, srcKey) {
     return new Promise((resolve, reject) => {
@@ -41,9 +42,9 @@ exports.handler = function(event, context) {
 
   function convert(response) {
     return new Promise((resolve, reject) => {
-      processedResponse = gm(response.Body).background('#FFFFFF').gravity('Center').strip().interlace('Plane').samplingFactor(2, 1);
-      if (rotationDegree) {
-        processedResponse = processedResponse.rotate("#FFFFFF", rotationDegree)
+      var processedResponse = gm(response.Body).background('#FFFFFF').gravity('Center').strip().interlace('Plane').samplingFactor(2, 2);
+      if (rotation) {
+        processedResponse = processedResponse.rotate("#FFFFFF", rotation)
       }
 
       processedResponse.toBuffer('JPG', (err, buffer) => {
@@ -69,18 +70,17 @@ exports.handler = function(event, context) {
       }
 
       resized.toBuffer('JPG', (err, buffer) => {
-          if(err)
-            reject(err)
-          else
-            resolve(buffer)
-
+        if(err)
+          reject(err)
+        else
+          resolve(buffer)
       })
     })
   }
 
   function formattedPath(srcKey, style) {
-    pathWithFolder = srcKey.split('/').slice(0, 5).join('/');
-    fileName = path.basename(srcKey);
+    var pathWithFolder = srcKey.split('/').slice(0, 5).join('/');
+    var fileName = path.basename(srcKey);
     return pathWithFolder + "/" + style + "/" + fileName.slice(0, -4) + ".jpg"
   }
 
@@ -125,6 +125,8 @@ exports.handler = function(event, context) {
       .then(response =>
             Promise.all(_sizesArray.map(v => process(response, v).then(data => upload(data, v.style)))));
   }
+
+  var promise;
 
   if(deleteLocation && srcKey) {
     promise = Promise.all([deleteAllFile(deleteLocation), downloadAndUpload(srcBucket, srcKey)]);
