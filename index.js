@@ -55,7 +55,7 @@ exports.handler = function(event, context) {
       var resized;
 
       if(size == "thumb") {
-        resized = gm(response).resize(elem.width, elem.height, "!");
+        resized = gm(response).resize("75", "75", "!");
       } else if(size == "medium") {
         resized = gm(response).resize("40000@");
       } else if(size == "large") {
