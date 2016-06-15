@@ -2,9 +2,7 @@
 
 var path = require('path');
 var AWS = require('aws-sdk');
-var gm = require('gm').subClass({
-  imageMagick: true
-});
+var gm = require('gm').subClass({ imageMagick: true });
 
 var fs = require('fs');
 var util = require('util');
@@ -20,11 +18,7 @@ exports.handler = function(event, context) {
     var srcKey = decodeURIComponent(event.path.replace(/\+/g, " "));
   }
 
-  var _sizesArray = [
-    { width: 75, height: 75, style: "thumb" },
-    { width: 200, height: 200, style: "medium" },
-    { width: 600, height: 600, style: "large" }
-  ];
+  var sizesArray = ["thumb", "medium", "large"];
 
   function download(srcBucket, srcKey) {
     return new Promise((resolve, reject) => {
@@ -47,7 +41,7 @@ exports.handler = function(event, context) {
         processedResponse = processedResponse.rotate("#FFFFFF", rotation)
       }
 
-      processedResponse.toBuffer('JPG', (err, buffer) => {
+      processedResponse.toBuffer('jpg', (err, buffer) => {
         if(err)
           reject(err);
         else
@@ -56,20 +50,19 @@ exports.handler = function(event, context) {
     })
   }
 
-  function process(response, elem) {
+  function process(response, size) {
     return new Promise((resolve, reject) => {
       var resized;
 
-      if(elem.style == "thumb") {
+      if(size == "thumb") {
         resized = gm(response).resize(elem.width, elem.height, "!");
-      } else if(elem.style == "medium") {
+      } else if(size == "medium") {
         resized = gm(response).resize("40000@");
-      } else if(elem.style == "large") {
-        resized = gm(response).resize("360000@");
-        resized = resized.fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
+      } else if(size == "large") {
+        resized = gm(response).resize("360000@").fill("#FFFFFF").fontSize(30).drawText(10, 10, "MeraYog.com", "SouthWest");
       }
 
-      resized.toBuffer('JPG', (err, buffer) => {
+      resized.toBuffer('jpg', (err, buffer) => {
         if(err)
           reject(err)
         else
@@ -116,14 +109,14 @@ exports.handler = function(event, context) {
   }
 
   function deleteAllFile(deleteLocation) {
-    return Promise.all(_sizesArray.map(v => deleteFile(srcBucket, formattedPath(deleteLocation, v.style))));
+    return Promise.all(sizesArray.map(size => deleteFile(srcBucket, formattedPath(deleteLocation, size))));
   }
 
   function downloadAndUpload(srcBucket, srcKey) {
     return download(srcBucket, srcKey)
       .then(convert)
       .then(response =>
-            Promise.all(_sizesArray.map(v => process(response, v).then(data => upload(data, v.style)))));
+         Promise.all(sizesArray.map(size => process(response, size).then(data => upload(data, size)))));
   }
 
   var promise;
@@ -139,7 +132,7 @@ exports.handler = function(event, context) {
   if(promise) {
     promise.then(response => context.done())
       .catch(error => {
-        console.log(error);
+        console.error(error);
         context.fail();
       });
   }
