@@ -85,7 +85,8 @@ exports.handler = function(event, context) {
         Key: formattedPath(srcKey, style),
         Body: data,
         ContentType: 'JPG',
-        ACL: 'public-read'
+        ACL: 'public-read',
+        CacheControl: 'max-age=315576000'
       }, (err, data) => {
         if(err)
           reject(err);
