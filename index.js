@@ -72,9 +72,10 @@ exports.handler = function(event, context) {
   }
 
   function formattedPath(srcKey, style) {
-    var pathWithFolder = srcKey.split('/').slice(0, 5).join('/');
-    var fileName = path.basename(srcKey);
-    return pathWithFolder + "/" + style + "/" + fileName.slice(0, -4) + ".jpg"
+    var splittedDirectory = path.dirname(srckey).split('/');
+    splittedDirectory.pop();
+    var ext = path.extname(srckey), filename = path.basename(srckey);
+    return path.join(splittedDirectory, style, filename.substring(0, filename.lastIndexOf(ext)), ".jpg")
   }
 
   function upload(data, style) {
