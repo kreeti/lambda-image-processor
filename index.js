@@ -72,10 +72,10 @@ exports.handler = function(event, context) {
   }
 
   function formattedPath(srcKey, style) {
-    var splittedDirectory = path.dirname(srckey).split('/');
+    var splittedDirectory = path.dirname(srcKey).split('/');
     splittedDirectory.pop();
-    var ext = path.extname(srckey), filename = path.basename(srckey);
-    return path.join(splittedDirectory, style, filename.substring(0, filename.lastIndexOf(ext)), ".jpg")
+    var ext = path.extname(srcKey), filename = path.basename(srcKey);
+    return path.join(splittedDirectory.join("/"), style, filename.substring(0, filename.lastIndexOf(ext)) + ".jpg")
   }
 
   function upload(data, style) {
@@ -85,7 +85,8 @@ exports.handler = function(event, context) {
         Key: formattedPath(srcKey, style),
         Body: data,
         ContentType: 'JPG',
-        ACL: 'public-read'
+        ACL: 'public-read',
+        CacheControl: 'max-age=315576000'
       }, (err, data) => {
         if(err)
           reject(err);
