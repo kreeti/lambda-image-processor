@@ -11,8 +11,11 @@ var s3 = new AWS.S3();
 exports.handler = function(event, context) {
   var srcBucket = event.bucket;
   var dstBucket = srcBucket;
-  var deleteLocation = event.old_path
-  var rotation = event.attributes['rotation']
+  var deleteLocation = event.old_path;
+
+  if(event.attributes) {
+    var rotation = event.attributes['rotation']
+  }
 
   if(event.path) {
     var srcKey = decodeURIComponent(event.path.replace(/\+/g, " "));
